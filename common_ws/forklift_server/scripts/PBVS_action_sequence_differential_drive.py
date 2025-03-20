@@ -423,7 +423,7 @@ class PBVS():
                     self.check_wait_time =self.check_wait_time  +1
 
 
-    def fruit_docking(self):  #製作一個用於水果對接的函數
+    def fruit_docking(self):  
         current_sequence = FruitSequence.move_forward.value
 
         while(not rospy.is_shutdown()):
@@ -435,16 +435,16 @@ class PBVS():
                 # 使用 dead reckoning 基於 y 軸距離移動至目標範圍
                 self.is_sequence_finished = self.Action.blind_walk_backward(duration=6)             
                 if self.is_sequence_finished:
-                    current_sequence = FruitSequence.move_forward_y.value  # 切換至下一狀態
-                    self.is_sequence_finished = False  # 重置狀態標誌
+                    current_sequence = FruitSequence.move_forward_y.value  
+                    self.is_sequence_finished = False  
 
 
             elif current_sequence == FruitSequence.move_forward_y.value:        
 
                 self.is_sequence_finished = self.Action.refine_alignment(object_name="bodycamera")                
                 if self.is_sequence_finished:
-                    current_sequence = FruitSequence.cut_pliers_up_down.value  # 切換至下一狀態
-                    self.is_sequence_finished = False  # 重置狀態標誌
+                    current_sequence = FruitSequence.cut_pliers_up_down.value  
+                    self.is_sequence_finished = False 
 
 
             # elif current_sequence == FruitSequence.cut_pliers_rises.value:
@@ -462,8 +462,8 @@ class PBVS():
                 self.is_sequence_finished = self.Action.fnControlArmBasedOnFruitZ("bodycamera")
 
                 if self.is_sequence_finished:
-                    current_sequence = FruitSequence.cut_pliers_approach.value  # 切換至下一狀態
-                    self.is_sequence_finished = False  # 重置狀態標誌
+                    current_sequence = FruitSequence.cut_pliers_approach.value  
+                    self.is_sequence_finished = False  
 
 
             elif current_sequence == FruitSequence.cut_pliers_approach.value:
@@ -472,8 +472,8 @@ class PBVS():
                 print("here")
 
                 if self.is_sequence_finished:
-                    current_sequence = FruitSequence.cut_pliers_dead_reckoning.value  # 切換至下一狀態
-                    self.is_sequence_finished = False  # 重置狀態標誌
+                    current_sequence = FruitSequence.cut_pliers_dead_reckoning.value  
+                    self.is_sequence_finished = False  
 
             elif current_sequence == FruitSequence.cut_pliers_dead_reckoning.value:
 
@@ -481,25 +481,25 @@ class PBVS():
                 print("here1")
 
                 if self.is_sequence_finished:
-                    current_sequence = FruitSequence.cut_pliers_close.value  # 切換至下一狀態
-                    self.is_sequence_finished = False  # 重置狀態標誌
+                    current_sequence = FruitSequence.cut_pliers_close.value  
+                    self.is_sequence_finished = False  
 
             elif current_sequence == FruitSequence.cut_pliers_close.value:
 
                 self.is_sequence_finished = self.Action.fnControlClaw(1)
                 print("here2")
                 if self.is_sequence_finished:
-                    current_sequence = FruitSequence.cut_pliers_backing.value  # 切換至下一狀態
+                    current_sequence = FruitSequence.cut_pliers_backing.value  
 
-                    self.is_sequence_finished = False  # 重置狀態標誌
+                    self.is_sequence_finished = False  
 
             elif current_sequence == FruitSequence.cut_pliers_backing.value:
 
                 self.is_sequence_finished = self.Action.fnRetractArm(10)
                 if self.is_sequence_finished:
-                    current_sequence = FruitSequence.cut_pliers_open.value  # 切換至下一狀態
+                    current_sequence = FruitSequence.cut_pliers_open.value  
 
-                    self.is_sequence_finished = False  # 重置狀態標誌
+                    self.is_sequence_finished = False  
 
 
             elif current_sequence == FruitSequence.cut_pliers_open.value:
@@ -508,7 +508,6 @@ class PBVS():
 
                 if self.is_sequence_finished:
                     rospy.loginfo("Process completed successfully.")
-                    # 結束整個函式
                     return
 
 

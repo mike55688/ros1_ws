@@ -219,7 +219,7 @@ class Subscriber():
                 theta = tf.transformations.euler_from_quaternion(quaternion)[1]
                 self.marker_2d_pose_x = -marker_msg.position.z
                 self.marker_2d_pose_y = marker_msg.position.x + self.offset_x
-                self.marker_2d_pose_z = marker_msg.position.y  # 更新z轴信息
+                self.marker_2d_pose_z = marker_msg.position.y  # 更新z轴信息1
 
                 self.marker_2d_theta = -theta
                 # rospy.loginfo("Pose: x={:.3f}, y={:.3f}, theta={:.3f}".format(self.marker_2d_pose_x, self.marker_2d_pose_y, self.marker_2d_theta))
