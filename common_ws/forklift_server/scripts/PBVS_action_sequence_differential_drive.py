@@ -431,20 +431,20 @@ class PBVS():
 
 
 
-            if current_sequence == FruitSequence.move_forward.value:
-                # 使用 dead reckoning 基於 y 軸距離移動至目標範圍
-                self.is_sequence_finished = self.Action.blind_walk_backward(duration=6)             
-                if self.is_sequence_finished:
-                    current_sequence = FruitSequence.move_forward_y.value  
-                    self.is_sequence_finished = False  
+            # if current_sequence == FruitSequence.move_forward.value:
+            #     # 使用 dead reckoning 基於 y 軸距離移動至目標範圍
+            #     self.is_sequence_finished = self.Action.blind_walk_backward(duration=6)             
+            #     if self.is_sequence_finished:
+            #         current_sequence = FruitSequence.move_forward_y.value  
+            #         self.is_sequence_finished = False  
 
 
-            elif current_sequence == FruitSequence.move_forward_y.value:        
+            # elif current_sequence == FruitSequence.move_forward_y.value:        
 
-                self.is_sequence_finished = self.Action.refine_alignment(object_name="bodycamera")                
-                if self.is_sequence_finished:
-                    current_sequence = FruitSequence.cut_pliers_up_down.value  
-                    self.is_sequence_finished = False 
+            #     self.is_sequence_finished = self.Action.refine_alignment(object_name="bodycamera")                
+            #     if self.is_sequence_finished:
+            #         current_sequence = FruitSequence.cut_pliers_up_down.value  
+            #         self.is_sequence_finished = False 
 
 
             # elif current_sequence == FruitSequence.cut_pliers_rises.value:
@@ -457,7 +457,7 @@ class PBVS():
             #         self.is_sequence_finished = False  # 重置狀態標誌
 
 
-            elif current_sequence == FruitSequence.cut_pliers_up_down.value:
+            if current_sequence == FruitSequence.move_forward.value:
 
                 self.is_sequence_finished = self.Action.fnControlArmBasedOnFruitZ("bodycamera")
 
@@ -466,14 +466,14 @@ class PBVS():
                     self.is_sequence_finished = False  
 
 
-            elif current_sequence == FruitSequence.cut_pliers_approach.value:
+            # elif current_sequence == FruitSequence.cut_pliers_approach.value:
 
-                self.is_sequence_finished = self.Action.fnControlArmBasedOnFruitX("bodycamera", target_x=-0.13)
-                print("here")
+            #     self.is_sequence_finished = self.Action.fnControlArmBasedOnFruitX("bodycamera", target_x=-0.13)
+            #     print("here")
 
-                if self.is_sequence_finished:
-                    current_sequence = FruitSequence.cut_pliers_dead_reckoning.value  
-                    self.is_sequence_finished = False  
+            #     if self.is_sequence_finished:
+            #         current_sequence = FruitSequence.cut_pliers_dead_reckoning.value  
+            #         self.is_sequence_finished = False  
 
             elif current_sequence == FruitSequence.cut_pliers_dead_reckoning.value:
 

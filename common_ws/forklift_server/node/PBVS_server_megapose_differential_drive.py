@@ -10,6 +10,7 @@ from nav_msgs.msg import Odometry
 import math
 from forklift_msg.msg import meteorcar
 from visp_megapose.msg import Confidence
+from custom_msgs.msg import CmdCutPliers  # 引入訊息格式
 
 import sys
 import os
@@ -141,6 +142,11 @@ class Subscriber():
         self.marker_2d_theta = 0.0
         # Forklift_param
         self.updownposition = 0.0
+
+        # 新增手臂相關參數
+        self.current_arm_status = None  # 儲存當前手臂狀態
+        self.last_command = {"height1": -1, "length1": -1, "claw1": False, "mode": -1}  # 上次命令記錄
+
         # confidence_param
         self.sub_detectionConfidence = DetectionConfidence(
             pallet_confidence = 0.0,
@@ -168,6 +174,11 @@ class Subscriber():
         
         self.pallet_detection_pub = rospy.Publisher(self.pallet_topic + "_detection", forklift_server.msg.Detection, queue_size = 1, latch=True)
         self.shelf_detection_pub = rospy.Publisher(self.shelf_topic + "_detection", forklift_server.msg.Detection, queue_size = 1, latch=True)
+        # 新增手臂相關訂閱和發布
+        self.arm_status_sub = rospy.Subscriber("/arm_current_status", CmdCutPliers, self.arm_status_callback, queue_size=1)
+        self.cut_pliers_sub = rospy.Subscriber("/cmd_cut_pliers", CmdCutPliers, self.cmd_cut_pliers_callback, queue_size=1)
+        self.arm_control_pub = rospy.Publisher("/cmd_cut_pliers", CmdCutPliers, queue_size=1, latch=True)
+    
     
     def fnDetectionAllowed(self, shelf_detection, pallet_detection, layer):
         shelf_msg = forklift_server.msg.Detection()
@@ -266,7 +277,64 @@ class Subscriber():
     def cbGetPalletConfidence(self, msg):
         self.sub_detectionConfidence.pallet_confidence = msg.object_confidence
         self.sub_detectionConfidence.pallet_detection = msg.model_detection
- 
+
+
+    def arm_status_callback(self, msg):
+        """當收到 /arm_current_status 的消息時更新內部變數"""
+        self.current_arm_status = msg
+        rospy.loginfo(f"更新手臂狀態: height1={msg.height1}, length1={msg.length1}, claw1={msg.claw1}")
+
+    def cmd_cut_pliers_callback(self, msg):
+        """處理從 /cmd_cut_pliers 接收到的手臂控制指令 (ROS 1 版本)"""
+        # 確保 mode 參數存在，預設為前伸模式 (0)
+        mode = msg.mode if hasattr(msg, "mode") else 0
+
+        # 確保 current_arm_status 不為空
+        if self.current_arm_status is None:
+            rospy.logwarn("⚠ current_arm_status 尚未初始化，忽略此指令")
+            return
+
+        # 後退模式防止錯誤回彈
+        if mode == 1:
+            if msg.length1 >= self.current_arm_status.length1:
+                rospy.logwarn(f"⚠ 後退模式啟動，但目標長度 {msg.length1} 不小於當前長度 {self.current_arm_status.length1}，忽略請求")
+                return
+
+        # 防止快速來回前進後退
+        if mode == 0 and msg.length1 < self.last_command["length1"]:
+            rospy.logwarn(f"⚠ 發現異常：目標長度 {msg.length1} 比上一個命令 {self.last_command['length1']} 更短，但仍為前伸模式，忽略請求")
+            return
+
+        # 確保只有當數據變化時才發布指令
+        if (msg.height1 == self.last_command["height1"] and
+            msg.length1 == self.last_command["length1"] and
+            msg.claw1 == self.last_command["claw1"] and
+            mode == self.last_command["mode"]):
+            rospy.loginfo("✅ 指令未變化，避免重複發布")
+            return
+
+        # 創建新的手臂控制訊息
+        arm_cmd = CmdCutPliers()
+        arm_cmd.height1 = msg.height1
+        arm_cmd.length1 = msg.length1
+        arm_cmd.claw1 = msg.claw1
+        arm_cmd.enable_motor1 = True
+        arm_cmd.mode = mode
+
+        # 更新 last_command 記錄
+        self.last_command = {
+            "height1": msg.height1,
+            "length1": msg.length1,
+            "claw1": msg.claw1,
+            "mode": mode
+        }
+
+        # 發布到 /cmd_cut_pliers
+        self.arm_control_pub.publish(arm_cmd)
+        rospy.loginfo(f"✅ 發送手臂控制指令: height1={arm_cmd.height1}, length1={arm_cmd.length1}, claw1={arm_cmd.claw1}, mode={arm_cmd.mode}")
+
+
+
 class PBVSAction():
     def __init__(self, name):
         self.subscriber = Subscriber()

@@ -49,6 +49,8 @@ class Action():
         self.arm_control_pub = rospy.Publisher("/cmd_cut_pliers", CmdCutPliers, queue_size=10)
         # 用於儲存最新的手臂狀態
         self.current_arm_status = None
+        # 訂閱 /arm_current_status 話題
+        self.arm_status_sub = rospy.Subscriber("/arm_current_status", CmdCutPliers, self.arm_status_callback, queue_size=1)
 
 
     def SpinOnce(self):
@@ -436,76 +438,76 @@ class Action():
         """
         當水果位於相機的左/右（以 y 軸衡量）時，對底盤做小幅微調，並確保數值穩定後才停止。
         """
-        self.SpinOnce()
-        rospy.loginfo(f"Current Object Pose: X = {self.marker_2d_pose_x:.6f}, "f"Y = {self.marker_2d_pose_y:.6f}, " f"Z = {self.marker_2d_pose_z:.6f}")
+        # self.SpinOnce()
+        # rospy.loginfo(f"Current Object Pose: X = {self.marker_2d_pose_x:.6f}, "f"Y = {self.marker_2d_pose_y:.6f}, " f"Z = {self.marker_2d_pose_z:.6f}")
 
-        # Y_MIN = -0.002  # 允許的最小值
-        # Y_MAX = target_y   # 允許的最大值
+        Y_MIN = -0.002  # 允許的最小值
+        Y_MAX = target_y   # 允許的最大值
 
-        # stable_y_vals = []  # 儲存穩定性檢查的數值
-        # prev_y = None  # 用來追蹤上一個 y 值，確保有更新
-        # stable_count = 0  # 計算連續穩定數值的次數
+        stable_y_vals = []  # 儲存穩定性檢查的數值
+        prev_y = None  # 用來追蹤上一個 y 值，確保有更新
+        stable_count = 0  # 計算連續穩定數值的次數
 
-        # for i in range(max_iterations):
-        #     self.SpinOnce()
+        for i in range(max_iterations):
+            self.SpinOnce()
 
-        #     if not self.TFConfidence(object_name):
-        #         self.cmd_vel.fnStop()
-        #         rospy.logwarn(
-        #             f"TF Data Not Confident for object '{object_name}' - Stopping"
-        #         )
-        #         return False
+            if not self.TFConfidence(object_name):
+                self.cmd_vel.fnStop()
+                rospy.logwarn(
+                    f"TF Data Not Confident for object '{object_name}' - Stopping"
+                )
+                return False
 
-        #     smoothed_y = self.compute_moving_average(self.marker_2d_pose_y)
-        #     error = smoothed_y - target_y
-        #     rospy.loginfo(
-        #         f"[refine_alignment] Iter {i+1}, Camera Y = {smoothed_y:.6f}, Error = {error:.6f}"
-        #     )
+            smoothed_y = self.compute_moving_average(self.marker_2d_pose_y)
+            error = smoothed_y - target_y
+            rospy.loginfo(
+                f"[refine_alignment] Iter {i+1}, Camera Y = {smoothed_y:.6f}, Error = {error:.6f}"
+            )
 
-        #     # **防止數據未更新，等姿態更新**
-        #     if prev_y is not None and abs(smoothed_y - prev_y) < 0.00001:  # 降低門檻
-        #         rospy.logwarn("Pose not updated, waiting for new data...")
-        #         time.sleep(0.5)
-        #         continue
+            # **防止數據未更新，等姿態更新**
+            if prev_y is not None and abs(smoothed_y - prev_y) < 0.00001:  # 降低門檻
+                rospy.logwarn("Pose not updated, waiting for new data...")
+                time.sleep(0.5)
+                continue
 
-        #     prev_y = smoothed_y  # 更新上一個 y 值
+            prev_y = smoothed_y  # 更新上一個 y 值
 
-        #     # **已經在允許範圍內，檢查數值是否穩定**
-        #     if Y_MIN <= smoothed_y <= Y_MAX:
-        #         self.cmd_vel.fnStop()
-        #         stable_y_vals.append(smoothed_y)
-        #         stable_count += 1
+            # **已經在允許範圍內，檢查數值是否穩定**
+            if Y_MIN <= smoothed_y <= Y_MAX:
+                self.cmd_vel.fnStop()
+                stable_y_vals.append(smoothed_y)
+                stable_count += 1
 
-        #         if stable_count >= 2:  # 只要 3 次內有 2 次成功，就判定成功
-        #             avg_y = sum(stable_y_vals) / len(stable_y_vals)
-        #             rospy.loginfo(f"2-sample average Y: {avg_y:.6f}")
-        #             rospy.loginfo("Y value is stable, alignment complete!")
-        #             return True
+                if stable_count >= 2:  # 只要 3 次內有 2 次成功，就判定成功
+                    avg_y = sum(stable_y_vals) / len(stable_y_vals)
+                    rospy.loginfo(f"2-sample average Y: {avg_y:.6f}")
+                    rospy.loginfo("Y value is stable, alignment complete!")
+                    return True
 
-        #         rospy.loginfo(f"Stable count: {stable_count}/3, continue checking...")
-        #         time.sleep(0.3)
-        #         continue  # **確保已經進入範圍內時不再移動**
+                rospy.loginfo(f"Stable count: {stable_count}/3, continue checking...")
+                time.sleep(0.3)
+                continue  # **確保已經進入範圍內時不再移動**
 
-        #     # **不在允許範圍內，進行修正**
-        #     stable_count = 0  # 進入這裡代表數值不穩定，重置計數
-        #     stable_y_vals.clear()  # 清除累積的數值
+            # **不在允許範圍內，進行修正**
+            stable_count = 0  # 進入這裡代表數值不穩定，重置計數
+            stable_y_vals.clear()  # 清除累積的數值
 
-        #     if smoothed_y > Y_MAX:
-        #         self.cmd_vel.fnGoBack()  # 小幅度後退
-        #         rospy.loginfo("Over threshold, moving backward to correct.")
-        #     elif smoothed_y < Y_MIN:
-        #         self.cmd_vel.fnGoStraight_fruit()  # 小幅度前進
-        #         rospy.loginfo("Under threshold, moving forward to correct.")
+            if smoothed_y > Y_MAX:
+                self.cmd_vel.fnGoBack()  # 小幅度後退
+                rospy.loginfo("Over threshold, moving backward to correct.")
+            elif smoothed_y < Y_MIN:
+                self.cmd_vel.fnGoStraight_fruit()  # 小幅度前進
+                rospy.loginfo("Under threshold, moving forward to correct.")
 
-        #     # **🚨 每次移動後立即停止，等數據更新**
-        #     time.sleep(0.5)  # **短暫移動時間**
-        #     self.cmd_vel.fnStop()
-        #     rospy.loginfo("Stop, waiting for pose update...")
-        #     time.sleep(1)  # **等數據更新**
+            # **🚨 每次移動後立即停止，等數據更新**
+            time.sleep(0.5)  # **短暫移動時間**
+            self.cmd_vel.fnStop()
+            rospy.loginfo("Stop, waiting for pose update...")
+            time.sleep(1)  # **等數據更新**
 
-        # self.cmd_vel.fnStop()
-        # rospy.logwarn("Failed to Align Within Max Iterations")
-        # return False
+        self.cmd_vel.fnStop()
+        rospy.logwarn("Failed to Align Within Max Iterations")
+        return False
 
 
 
