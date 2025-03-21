@@ -280,32 +280,25 @@ class Subscriber():
 
 
     def arm_status_callback(self, msg):
-        """當收到 /arm_current_status 的消息時更新內部變數"""
         self.current_arm_status = msg
-        rospy.loginfo(f"更新手臂狀態: height1={msg.height1}, length1={msg.length1}, claw1={msg.claw1}")
+        # rospy.loginfo(f"更新手臂狀態: height1={msg.height1}, length1={msg.length1}, claw1={msg.claw1}")
 
     def cmd_cut_pliers_callback(self, msg):
-        """處理從 /cmd_cut_pliers 接收到的手臂控制指令 (ROS 1 版本)"""
-        # 確保 mode 參數存在，預設為前伸模式 (0)
         mode = msg.mode if hasattr(msg, "mode") else 0
 
-        # 確保 current_arm_status 不為空
         if self.current_arm_status is None:
             rospy.logwarn("⚠ current_arm_status 尚未初始化，忽略此指令")
             return
 
-        # 後退模式防止錯誤回彈
         if mode == 1:
             if msg.length1 >= self.current_arm_status.length1:
                 rospy.logwarn(f"⚠ 後退模式啟動，但目標長度 {msg.length1} 不小於當前長度 {self.current_arm_status.length1}，忽略請求")
                 return
 
-        # 防止快速來回前進後退
         if mode == 0 and msg.length1 < self.last_command["length1"]:
             rospy.logwarn(f"⚠ 發現異常：目標長度 {msg.length1} 比上一個命令 {self.last_command['length1']} 更短，但仍為前伸模式，忽略請求")
             return
 
-        # 確保只有當數據變化時才發布指令
         if (msg.height1 == self.last_command["height1"] and
             msg.length1 == self.last_command["length1"] and
             msg.claw1 == self.last_command["claw1"] and
@@ -313,7 +306,6 @@ class Subscriber():
             rospy.loginfo("✅ 指令未變化，避免重複發布")
             return
 
-        # 創建新的手臂控制訊息
         arm_cmd = CmdCutPliers()
         arm_cmd.height1 = msg.height1
         arm_cmd.length1 = msg.length1
@@ -321,7 +313,6 @@ class Subscriber():
         arm_cmd.enable_motor1 = True
         arm_cmd.mode = mode
 
-        # 更新 last_command 記錄
         self.last_command = {
             "height1": msg.height1,
             "length1": msg.length1,

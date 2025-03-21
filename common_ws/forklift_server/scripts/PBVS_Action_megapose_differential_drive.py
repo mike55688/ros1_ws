@@ -493,10 +493,10 @@ class Action():
             stable_y_vals.clear()  # 清除累積的數值
 
             if smoothed_y > Y_MAX:
-                self.cmd_vel.fnGoBack()  # 小幅度後退
+                self.cmd_vel.fnGoStraight_fruit()  # 小幅度前進
                 rospy.loginfo("Over threshold, moving backward to correct.")
             elif smoothed_y < Y_MIN:
-                self.cmd_vel.fnGoStraight_fruit()  # 小幅度前進
+                self.cmd_vel.fnGoBack()  # 小幅度後退
                 rospy.loginfo("Under threshold, moving forward to correct.")
 
             # **🚨 每次移動後立即停止，等數據更新**
@@ -713,7 +713,7 @@ class Action():
         while time.time() - start_time < timeout:
             # 更新水果 x 軸資訊
             self.SpinOnce()
-            fruit_x = self.pallet_2d_pose_x
+            fruit_x = self.marker_2d_pose_x
             rospy.loginfo(
                 f"當前水果 X 值: {fruit_x:.4f}, 目標: {target_x:.4f}, 前伸長度: {self.current_arm_status.length1}"
             )
@@ -1002,7 +1002,7 @@ class cmd_vel():
 
     def fnGoBack(self):
         twist = Twist()
-        twist.linear.x = -0.1
+        twist.linear.x = -0.02
         twist.linear.y = 0
         twist.linear.z = 0
         twist.angular.x = 0
