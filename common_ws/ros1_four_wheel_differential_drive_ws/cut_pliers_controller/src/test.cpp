@@ -310,7 +310,7 @@ public:
         nh.param<std::string>("cmd_topic", cmd_topic, "/cmd_cut_pliers_123"); // 預設 "/cmd_cut_pliers"
 
         // 初始化手臂1控制參數（僅控制手臂1）
-        target_height1_ = 120;
+        target_height1_ = 140;
         target_length1_ = -1;
         last_valid_length_ = 10;
         claw1_ = false;

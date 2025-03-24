@@ -121,7 +121,7 @@ class Action():
         # 開始移動
         while (rospy.Time.now().secs) < (start_time + time_needed):
             self.cmd_vel.fnGoStraight(Kp, v)
-            time.sleep(0.1)  # 每 0.1 秒發送一次指令
+            rospy.sleep(0.1)  # 每 0.1 秒發送一次指令
         self.cmd_vel.fnStop()   # 停止機器人
         return True
 
@@ -132,7 +132,7 @@ class Action():
         rospy.loginfo(f'time_needed:{time_needed}')
         while (rospy.Time.now().secs) < (start_time + time_needed):
             self.cmd_vel.fnTurn(Kp, theta)
-            time.sleep(0.1)  # 每 0.1 秒發送一次指令
+            rospy.sleep(0.1)  # 每 0.1 秒發送一次指令
         self.cmd_vel.fnStop()   # 停止機器人
         return True
     
@@ -436,80 +436,74 @@ class Action():
 
     def refine_alignment(self, object_name, target_y=0.007, max_iterations=10, threshold=0.006):
         """
-        當水果位於相機的左/右（以 y 軸衡量）時，對底盤做小幅微調，並確保數值穩定後才停止。
+        當水果位於相機的左/右（以 y 軸衡量）時，對底盤做小幅微調，每次移動後檢查是否進入範圍。
         """
-        # self.SpinOnce()
-        # rospy.loginfo(f"Current Object Pose: X = {self.marker_2d_pose_x:.6f}, "f"Y = {self.marker_2d_pose_y:.6f}, " f"Z = {self.marker_2d_pose_z:.6f}")
-
         Y_MIN = -0.002  # 允許的最小值
-        Y_MAX = target_y   # 允許的最大值
+        Y_MAX = target_y  # 允許的最大值
 
-        stable_y_vals = []  # 儲存穩定性檢查的數值
         prev_y = None  # 用來追蹤上一個 y 值，確保有更新
-        stable_count = 0  # 計算連續穩定數值的次數
 
         for i in range(max_iterations):
             self.SpinOnce()
 
             if not self.TFConfidence(object_name):
                 self.cmd_vel.fnStop()
-                rospy.logwarn(
-                    f"TF Data Not Confident for object '{object_name}' - Stopping"
-                )
+                rospy.logwarn(f"TF Data Not Confident for object '{object_name}' - Stopping")
                 return False
 
             smoothed_y = self.compute_moving_average(self.marker_2d_pose_y)
             error = smoothed_y - target_y
-            rospy.loginfo(
-                f"[refine_alignment] Iter {i+1}, Camera Y = {smoothed_y:.6f}, Error = {error:.6f}"
-            )
+            rospy.loginfo(f"[refine_alignment] Iter {i+1}, Camera Y = {smoothed_y:.6f}, Error = {error:.6f}")
 
-            # **防止數據未更新，等姿態更新**
-            if prev_y is not None and abs(smoothed_y - prev_y) < 0.00001:  # 降低門檻
+            # 防止數據未更新，等姿態更新
+            if prev_y is not None and abs(smoothed_y - prev_y) < 0.00001:
                 rospy.logwarn("Pose not updated, waiting for new data...")
-                time.sleep(0.5)
+                rospy.sleep(4)
                 continue
 
-            prev_y = smoothed_y  # 更新上一個 y 值
+            prev_y = smoothed_y
 
-            # **已經在允許範圍內，檢查數值是否穩定**
+            # 如果已經在範圍內，立即停止並返回
             if Y_MIN <= smoothed_y <= Y_MAX:
                 self.cmd_vel.fnStop()
-                stable_y_vals.append(smoothed_y)
-                stable_count += 1
+                rospy.loginfo(f"Camera Y = {smoothed_y:.6f} is within range [{Y_MIN}, {Y_MAX}], alignment complete!")
+                return True
 
-                if stable_count >= 2:  # 只要 3 次內有 2 次成功，就判定成功
-                    avg_y = sum(stable_y_vals) / len(stable_y_vals)
-                    rospy.loginfo(f"2-sample average Y: {avg_y:.6f}")
-                    rospy.loginfo("Y value is stable, alignment complete!")
-                    return True
-
-                rospy.loginfo(f"Stable count: {stable_count}/3, continue checking...")
-                time.sleep(0.3)
-                continue  # **確保已經進入範圍內時不再移動**
-
-            # **不在允許範圍內，進行修正**
-            stable_count = 0  # 進入這裡代表數值不穩定，重置計數
-            stable_y_vals.clear()  # 清除累積的數值
-
+            # 不在範圍內，進行修正
             if smoothed_y > Y_MAX:
-                self.cmd_vel.fnGoStraight_fruit()  # 小幅度前進
+                self.cmd_vel.fnGoStraight_fruit()
                 rospy.loginfo("Over threshold, moving backward to correct.")
             elif smoothed_y < Y_MIN:
-                self.cmd_vel.fnGoBack()  # 小幅度後退
+                self.cmd_vel.fnGoBack()
                 rospy.loginfo("Under threshold, moving forward to correct.")
 
-            # **🚨 每次移動後立即停止，等數據更新**
-            time.sleep(0.5)  # **短暫移動時間**
+            # 每次移動後立即停止，等數據更新並檢查
+            move_duration = 0.05  # 進一步縮短移動時間，每次移動更小距離
+            rospy.sleep(move_duration)
             self.cmd_vel.fnStop()
             rospy.loginfo("Stop, waiting for pose update...")
-            time.sleep(1)  # **等數據更新**
+
+            # 動態等待數據更新
+            prev_y_temp = smoothed_y
+            timeout = 10.0  # 最多等待 10 秒
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                self.SpinOnce()
+                smoothed_y = self.compute_moving_average(self.marker_2d_pose_y)
+                if abs(smoothed_y - prev_y_temp) > 0.00001:  # 數據已更新
+                    break
+                rospy.sleep(0.1)
+            rospy.loginfo(f"Pose updated, new Y = {smoothed_y:.6f}")
+
+            # 移動後立即檢查是否進入範圍
+            if Y_MIN <= smoothed_y <= Y_MAX:
+                self.cmd_vel.fnStop()
+                rospy.loginfo(f"Camera Y = {smoothed_y:.6f} is within range [{Y_MIN}, {Y_MAX}] after move, alignment complete!")
+                return True
 
         self.cmd_vel.fnStop()
         rospy.logwarn("Failed to Align Within Max Iterations")
         return False
-
-
 
     def blind_walk_backward(self, duration, speed=-0.2):
         """
@@ -577,7 +571,7 @@ class Action():
                     return True
             else:
                 rospy.logwarn("尚未接收到手臂狀態訊息。")
-            # time.sleep(1)  # 每 100ms 檢查一次
+            # rospy.sleep(1)  # 每 100ms 檢查一次
         rospy.logwarn("Timeout waiting for arm to reach target state.")
         return False
 
@@ -624,7 +618,7 @@ class Action():
 
             if self.current_arm_status is None:
                 rospy.logwarn("尚未接收到手臂狀態訊息。")
-                time.sleep(0.5)
+                rospy.sleep(0.5)
                 continue
 
             # 將下位機回傳的手臂高度（可能為負）轉換為正數
@@ -635,7 +629,7 @@ class Action():
             confidence = self.TFConfidence(object_name)
             if confidence is None or confidence < 0.5:
                 rospy.logwarn(f"信心指數不足 ({confidence}), 暫停調整，等待重新估測。")
-                time.sleep(1.0)
+                rospy.sleep(1.0)
                 continue
 
             rospy.loginfo(
@@ -691,9 +685,9 @@ class Action():
                     rospy.logwarn(
                         f"⏳ 當前高度 {current_height} mm，目標 {new_height} mm，誤差 {error} mm，等待中..."
                     )
-                    time.sleep(1)
+                    rospy.sleep(1)
             
-            time.sleep(1)  # 給予一些時間讓數據穩定後再重新評估水果 Z 值
+            rospy.sleep(1)  # 給予一些時間讓數據穩定後再重新評估水果 Z 值
 
         rospy.logwarn("❌ 超時：手臂未能調整至符合目標水果 Z 範圍。")
         return False
@@ -779,9 +773,9 @@ class Action():
                     break
                 else:
                     rospy.logwarn(f"⏳ 目前長度 {current_length} mm，目標 {target_length} mm，等待中...")
-                    time.sleep(0.5)  # 每 500ms 檢查一次
+                    rospy.sleep(0.5)  # 每 500ms 檢查一次
 
-            time.sleep(1)  # **延長等待時間，確保 `length1` 更新穩定**
+            rospy.sleep(1)  # **延長等待時間，確保 `length1` 更新穩定**
 
         rospy.logwarn("Timeout: 手臂未能達到目標 X 值。")
         return False
@@ -844,7 +838,7 @@ class Action():
                 self.blind_extend_completed = True
                 return True
 
-            time.sleep(0.5)
+            rospy.sleep(0.5)
 
         rospy.logerr(f"⏰ 盲伸超時: 目標 {target_length} mm 未達成，當前 {current_length} mm")
         return False
@@ -880,10 +874,10 @@ class Action():
             self.SpinOnce()  # 處理 ROS 回傳的狀態
             if self.current_arm_status.claw1 == claw_state:
                 rospy.loginfo(f"✅ 剪鉗 {'閉合' if claw_state else '打開'} 成功，等待2秒以穩定狀態...")
-                time.sleep(2)  # 等待2秒
+                rospy.sleep(2)  # 等待2秒
                 return True
             rospy.logwarn(f"⏳ 剪鉗動作中... 目標: {claw_state}, 當前: {self.current_arm_status.claw1}")
-            time.sleep(0.1)
+            rospy.sleep(0.1)
         
         rospy.logerr(f"⏰ 剪鉗動作超時: 目標 {claw_state}, 當前 {self.current_arm_status.claw1}")
         return False
@@ -932,7 +926,7 @@ class Action():
                 return True
 
             rospy.logwarn(f"⏳ 目前長度 {current_length} mm，目標 {target_length_1} mm，等待中...")
-            time.sleep(0.5)
+            rospy.sleep(0.5)
 
         rospy.logerr(f"⏰ 手臂後退超時: 目標 {target_length_1} mm 未達成，當前 {current_length} mm")
         return False
@@ -970,9 +964,9 @@ class cmd_vel():
         elif twist.angular.z < -0.2:
             twist.angular.z =-0.2
         if twist.linear.x > 0 and twist.linear.x < 0.02:
-            twist.linear.x =0.05
+            twist.linear.x =0.02
         elif twist.linear.x < 0 and twist.linear.x > -0.02:
-            twist.linear.x =-0.05   
+            twist.linear.x =-0.02  
 
         if twist.linear.x > 0.2:
             twist.linear.x =0.2
@@ -1038,7 +1032,7 @@ class cmd_vel():
 
     def fnGoStraight_fruit(self):      #控制叉車前進
         twist = Twist()
-        twist.linear.x = 0.02
+        twist.linear.x = 0.01
         self.cmd_pub(twist)
 
   

@@ -441,14 +441,14 @@ class PBVS():
 
             if current_sequence == FruitSequence.move_forward_y.value:        
 
-                self.is_sequence_finished = self.Action.refine_alignment(object_name="bodycamera")                
+                self.is_sequence_finished = self.Action.refine_alignment(object_name="bodycamera") 
+
                 if self.is_sequence_finished:
-                    rospy.loginfo("Process completed successfully.")
-                    return
+                    current_sequence = FruitSequence.cut_pliers_up_down.value  
+                    self.is_sequence_finished = False  
 
 
             # elif current_sequence == FruitSequence.cut_pliers_rises.value:
-            #     # 關鍵：要接收 refine_alignment() 的回傳值
             #     self.is_sequence_finished = self.Action.fnControlArm(140, False, timeout=0.5)
             #     print("here")
 
@@ -457,7 +457,7 @@ class PBVS():
             #         self.is_sequence_finished = False  # 重置狀態標誌
 
 
-            if current_sequence == FruitSequence.cut_pliers_up_down.value:
+            elif current_sequence == FruitSequence.cut_pliers_up_down.value:
 
                 self.is_sequence_finished = self.Action.fnControlArmBasedOnFruitZ("bodycamera")
 
