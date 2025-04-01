@@ -3,8 +3,9 @@
     <rosparam param="command">
     [
         <!-- ['MoveBase', 'P1'], -->
+        ['TopologyMap', 'P1'],
 
-        ['PBVS', 'fruit_docking', 0.0],
+        <!-- ['PBVS', 'fruit_docking', 0.0], -->
 
     ] 
     </rosparam>
