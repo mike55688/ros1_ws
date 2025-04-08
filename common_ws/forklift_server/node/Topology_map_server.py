@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 # -*- coding: utf-8 -*-
+from time import time
 import rospy
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
@@ -9,8 +10,12 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, Pose
 from visualization_msgs.msg import Marker
 import tf2_ros
+from geometry_msgs.msg import PoseWithCovarianceStamped
 import heapq
 import math
+from dynamic_reconfigure import client
+import tf
+from tf.transformations import euler_from_quaternion
 
 
 
@@ -74,6 +79,18 @@ class TopologyMap():
         path.reverse()  
         return path
 
+class SubscriberPose():        # 監聽車子在地圖中的位置
+    def __init__(self):
+        rospy.Subscriber("/rtabmap/localization_pose", PoseWithCovarianceStamped, self.Current_pose, queue_size = 1)
+
+    def Current_pose(self, msg):
+        self.robot_pose_x = msg.pose.pose.position.x
+        self.robot_pose_y = msg.pose.pose.position.y
+
+    def spin_once(self):
+        return self.robot_pose_x, self.robot_pose_y
+
+
 class Navigation():
     def __init__(self):
         odom = rospy.get_param(rospy.get_name() + "/odom", "/odom")
@@ -83,7 +100,19 @@ class Navigation():
         self.cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size = 1)
         self.init_param()
 
-    def move(self, x, y, z, w):
+    def get_map_to_base_xyzw(self):
+        listener = tf.TransformListener()
+        while not rospy.is_shutdown():
+            try:
+                listener.waitForTransform('map', 'base_link', rospy.Time(0), rospy.Duration(4.0))
+                (trans, rot) = listener.lookupTransform('map', 'base_link', rospy.Time(0))
+                # rospy.loginfo('Transform: %s, %s' % (trans[0], trans[1]))
+                return trans[0], trans[1], rot[2], rot[3]
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
+                rospy.logerr(e)
+                return 0.0, 0.0, 0.0, 0.0
+                        
+    def move(self, mode, x, y, z, w):    
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = "map"
         goal.target_pose.header.stamp = rospy.Time.now()
@@ -94,20 +123,40 @@ class Navigation():
 
         self.client.send_goal(goal)
         print("Navigation to", goal)
-        wait = self.client.wait_for_result()
+
+        if 'pass' in mode :
+            pass_value = 1.1
+            while(1):
+                # current_position_x, current_position_y = sub_pose.spin_once()
+                current_position_x, current_position_y = self.get_map_to_base_xyzw()[0], self.get_map_to_base_xyzw()[1]
+                distance_target = math.sqrt(((x - current_position_x) ** 2) + ((y - current_position_y) ** 2))      # 計算從目前位置到目標點的直線距離
+                # rospy.loginfo("distance_target = %s" % (distance_target))
+                if distance_target < pass_value :
+                    break
+                
+            return self.client.get_result()
+        
+        else :
+            wait = self.client.wait_for_result()
 
         if not wait:
             rospy.logerr("Action server not available!")
             rospy.signal_shutdown("Action server not available!")
         else:
             return self.client.get_result()
-
+    
     def init_param(self):    
         self.trigger = True
         self.pre_odom = 0.0
         self.odom_pass = 0.0
     
     def cbGetRobotOdom(self, msg):
+
+        # orientation_q = msg.pose.pose.orientation
+        # orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        # (roll, pitch, yaw) = euler_from_quaternion(orientation_list)
+        # self.current_orientation = yaw
+
         self.rz, self.rw = msg.pose.pose.orientation.z, msg.pose.pose.orientation.w
         yaw_r = math.atan2(2 * self.rw * self.rz, self.rw * self.rw - self.rz * self.rz)
         if(yaw_r < 0):
@@ -168,7 +217,6 @@ class Navigation():
         self.cmd_pub.publish(Twist())
         self.trigger = True
 
-
 class TopologyMapAction():
     _result = forklift_server.msg.TopologyMapResult()
     _feedback = forklift_server.msg.TopologyMapFeedback()
@@ -200,7 +248,21 @@ class TopologyMapAction():
                 path = [msg.target_name]
 
             for i in range(len(path)):
-                rospy.sleep(1.0)
+                rospy.sleep(0.6)
+                # new test for dynamic reconfigure
+
+                if "back" in path[i] :
+                    dynamic_client.update_configuration({"weight_kinematics_forward_drive":0.01})
+                    dynamic_client.update_configuration({"weight_max_vel_theta":150}) 
+                    dynamic_client.update_configuration({"weight_acc_lim_theta":1}) 
+                    dynamic_client2.update_configuration({"orientation_mode":2})
+                else : 
+                    dynamic_client.update_configuration({"weight_kinematics_forward_drive":1000})
+                    dynamic_client.update_configuration({"weight_max_vel_theta":200}) 
+                    dynamic_client.update_configuration({"weight_acc_lim_theta":5}) 
+                    dynamic_client2.update_configuration({"orientation_mode":1})
+
+
                 if (i > 0 and (waypoints[path[i]][0] == waypoints[path[i-1]][0] and waypoints[path[i]][1] == waypoints[path[i-1]][1])):
                     rospy.loginfo('self_spin from %s to %s' %
                                   (path[i-1], path[i]))
@@ -215,8 +277,10 @@ class TopologyMapAction():
                     rospy.loginfo('Navigation to %s' % path[i])
                     self._feedback.feedback = str('Navigation to %s' % path[i])
                     self._as.publish_feedback(self._feedback)
-                    self.Navigation.move(
-                        waypoints[path[i]][0], waypoints[path[i]][1], waypoints[path[i]][2], waypoints[path[i]][3])
+                    # if "back" in path[i]:
+                    #     self.Navigation.move_back(waypoints[path[i]][0], waypoints[path[i]][1])
+                    # else:
+                    self.Navigation.move(path[i], waypoints[path[i]][0], waypoints[path[i]][1], waypoints[path[i]][2], waypoints[path[i]][3])
                 
 
         elif msg.target_pose != None:
@@ -300,9 +364,14 @@ class MarkerViewer():
 if __name__ == '__main__':
     rospy.init_node('TopologyMap_server')
     server = TopologyMapAction(rospy.get_name())
+    sub_pose = SubscriberPose()
+    dynamic_client = client.Client("move_base/TebLocalPlannerROS")
+    # dynamic_client2 = client.Client("/move_base/global_costmap/inflation_layer")
+    dynamic_client2 = client.Client("move_base/GlobalPlanner")
     
     MarkerViewer = MarkerViewer()
     for i in waypoints:
         MarkerViewer.PublishMarker(i)
         rospy.sleep(0.2)
+    
     rospy.spin()
