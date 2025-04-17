@@ -124,6 +124,33 @@ class Subscriber():
         rospy.loginfo("drop_pallet_drop_height_layer2: {}, type: {}".format(self.drop_pallet_drop_height_layer2, type(self.drop_pallet_drop_height_layer2)))
         rospy.loginfo("drop_pallet_back_distance: {}, type: {}".format(self.drop_pallet_back_distance, type(self.drop_pallet_back_distance)))
 
+
+
+        # Cut pliers (arm) control settings
+        self.cut_pliers_lower_z = rospy.get_param(rospy.get_name() + "/cut_pliers_lower_z", 0.022)
+        self.cut_pliers_upper_z = rospy.get_param(rospy.get_name() + "/cut_pliers_upper_z", 0.028)
+        self.cut_pliers_height_increment = rospy.get_param(rospy.get_name() + "/cut_pliers_height_increment", 10.0)
+        self.cut_pliers_min_height = rospy.get_param(rospy.get_name() + "/cut_pliers_min_height", 0.0)
+        self.cut_pliers_max_height = rospy.get_param(rospy.get_name() + "/cut_pliers_max_height", 280.0)
+        self.cut_pliers_target_x = rospy.get_param(rospy.get_name() + "/cut_pliers_target_x", -0.13)
+        self.cut_pliers_length_increment = rospy.get_param(rospy.get_name() + "/cut_pliers_length_increment", 10.0)
+        self.cut_pliers_max_length = rospy.get_param(rospy.get_name() + "/cut_pliers_max_length", 440.0)
+        self.cut_pliers_blind_extend_length = rospy.get_param(rospy.get_name() + "/cut_pliers_blind_extend_length", 78.0)
+        self.cut_pliers_retract_length = rospy.get_param(rospy.get_name() + "/cut_pliers_retract_length", 10.0)
+
+        rospy.loginfo("Get cut pliers (arm) control parameters")
+        rospy.loginfo("cut_pliers_lower_z: {}, type: {}".format(self.cut_pliers_lower_z, type(self.cut_pliers_lower_z)))
+        rospy.loginfo("cut_pliers_upper_z: {}, type: {}".format(self.cut_pliers_upper_z, type(self.cut_pliers_upper_z)))
+        rospy.loginfo("cut_pliers_height_increment: {}, type: {}".format(self.cut_pliers_height_increment, type(self.cut_pliers_height_increment)))
+        rospy.loginfo("cut_pliers_min_height: {}, type: {}".format(self.cut_pliers_min_height, type(self.cut_pliers_min_height)))
+        rospy.loginfo("cut_pliers_max_height: {}, type: {}".format(self.cut_pliers_max_height, type(self.cut_pliers_max_height)))
+        rospy.loginfo("cut_pliers_target_x: {}, type: {}".format(self.cut_pliers_target_x, type(self.cut_pliers_target_x)))
+        rospy.loginfo("cut_pliers_length_increment: {}, type: {}".format(self.cut_pliers_length_increment, type(self.cut_pliers_length_increment)))
+        rospy.loginfo("cut_pliers_max_length: {}, type: {}".format(self.cut_pliers_max_length, type(self.cut_pliers_max_length)))
+        rospy.loginfo("cut_pliers_blind_extend_length: {}, type: {}".format(self.cut_pliers_blind_extend_length, type(self.cut_pliers_blind_extend_length)))
+        rospy.loginfo("cut_pliers_retract_length: {}, type: {}".format(self.cut_pliers_retract_length, type(self.cut_pliers_retract_length)))
+
+
     def init_parame(self):
         # Odometry_param
         self.is_odom_received = False

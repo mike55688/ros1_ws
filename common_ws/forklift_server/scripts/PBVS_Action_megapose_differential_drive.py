@@ -438,6 +438,8 @@ class Action():
         """
         當水果位於相機的左/右（以 y 軸衡量）時，對底盤做小幅微調，每次移動後檢查是否進入範圍。
         """
+        rospy.sleep(3)         # 避免發送頻率過高
+
         Y_MIN = -0.002  # 允許的最小值
         Y_MAX = target_y  # 允許的最大值
 
@@ -586,179 +588,130 @@ class Action():
  
 
 
-    def fnControlArmBasedOnFruitZ(self, object_name, lower_z=0.022, upper_z=0.028, timeout=10.0, increment=10, min_height=0, max_height=280, tolerance=4):
-        """
-        根據水果的 Z 軸數值持續調整手臂高度，
-        當水果的 Z 值進入允許範圍 (lower_z ~ upper_z) 時，認為已達標停止調整，
-        並保持手臂長度不變。
+    def fnControlArmBasedOnFruitZ(self, object_name, timeout=10.0, tolerance=4):
+            """
+            根據水果的 Z 軸數值持續調整手臂高度，
+            當水果的 Z 值進入允許範圍 (lower_z ~ upper_z) 時，認為已達標停止調整，
+            並保持手臂長度不變。
+            參數從 self.Subscriber 讀取。
+            """
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                # 更新水果 Z 與手臂狀態
+                self.SpinOnce()  # 更新 self.marker_2d_pose_z 與 self.current_arm_status
+                fruit_z = self.marker_2d_pose_z
 
-        注意：
-        - 控制命令中的高度值必須為正，範圍在 [min_height, max_height]（例如 0 ~ 280），
-            0 表示最下位置，280 表示最高位置。
-        - 由於下位機回傳的手臂高度為負，這裡用 abs() 轉換為正數作為參考值。
-        - 如果水果 Z 值低於 lower_z（水果太低），則需要上升，意即將手臂高度增大；
-            如果水果 Z 值高於 upper_z（水果太高），則需要下降，意即將手臂高度減小。
-        - 若信心指數不足（< 0.5），則暫停調整，等待重新估測。
+                if self.current_arm_status is None:
+                    rospy.logwarn("尚未接收到手臂狀態訊息。")
+                    rospy.sleep(0.5)
+                    continue
 
-        :param object_name: 目標物名稱（例如 "bodycamera"）
-        :param lower_z: 水果 Z 軸下界（例如 0.022）
-        :param upper_z: 水果 Z 軸上界（例如 0.030）
-        :param timeout: 超時秒數（預設 10 秒）
-        :param increment: 每次調整的高度增量 (毫米)，正值表示幅度
-        :param min_height: 手臂允許的最小高度（例如 0，最下）
-        :param max_height: 手臂允許的最大高度（例如 280，最高）
-        :param tolerance: 高度允許的誤差 (毫米)
-        :return: 若最終水果 Z 值進入目標範圍則返回 True，否則返回 False
-        """
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            # 更新水果 Z 與手臂狀態
-            self.SpinOnce()  # 更新 self.pallet_2d_pose_z 與 self.current_arm_status
-            fruit_z = self.marker_2d_pose_z
-
-            if self.current_arm_status is None:
-                rospy.logwarn("尚未接收到手臂狀態訊息。")
-                rospy.sleep(0.5)
-                continue
-
-            # 將下位機回傳的手臂高度（可能為負）轉換為正數
-            current_height = abs(self.current_arm_status.height1)
-            current_length = self.current_arm_status.length1  # 前伸長度保持不變
-
-            # 取得信心指數
-            confidence = self.TFConfidence(object_name)
-            if confidence is None or confidence < 0.5:
-                rospy.logwarn(f"信心指數不足 ({confidence}), 暫停調整，等待重新估測。")
-                rospy.sleep(1.0)
-                continue
-
-            rospy.loginfo(
-                f"當前水果 Z 值: {fruit_z:.4f}, 允許範圍: ({lower_z} ~ {upper_z}), 當前手臂高度: {current_height}"
-            )
-
-            # 若水果 Z 值在目標範圍內，則認為達標，停止調整
-            if lower_z <= fruit_z <= upper_z:
-                rospy.loginfo("✅ 水果 Z 值已達標，停止調整高度。")
-                return True
-
-            # 根據水果 Z 值決定調整方向：
-            # 若水果 Z 值低於 lower_z，水果太低，需上升 => 手臂高度增加
-            if fruit_z < lower_z:
-                new_height = current_height + abs(increment)
-                rospy.loginfo(f"📈 水果過低，預計上升：{current_height} -> {new_height} mm")
-            # 若水果 Z 值高於 upper_z，水果太高，需下降 => 手臂高度減少
-            else:
-                new_height = current_height - abs(increment)
-                rospy.loginfo(f"📉 水果過高，預計下降：{current_height} -> {new_height} mm")
-
-            # 限制新高度在 [min_height, max_height] 範圍內
-            new_height = max(min(new_height, max_height), min_height)
-            rospy.loginfo(f"最終設定高度: {new_height} mm (範圍 [{min_height}, {max_height}])")
-
-            # 若高度變化超過容許誤差則發布控制命令
-            if abs(new_height - current_height) > tolerance:
-                msg = CmdCutPliers()
-                msg.height1 = new_height    # 發布正值高度
-                msg.length1 = current_length  # 保持前伸長度不變
-                msg.enable_motor1 = True
-                msg.enable_motor2 = True
-                msg.target_motor = 0  # target_motor = 0 表示控制高度
-                msg.motor_value = new_height  # 馬達值設定為目標高度
-                self.arm_control_pub.publish(msg)
-                rospy.loginfo(f"✅ 發送手臂控制指令: 高度={new_height}, 長度={current_length}")
-            else:
-                rospy.loginfo("高度變化小於容許誤差，避免重複發布指令。")
-
-            # 等待手臂達到新高度
-            reach_start = time.time()
-            while time.time() - reach_start < 5:
-                self.SpinOnce()
-                # 讀取時也將高度轉換為正數進行比較
+                # 將下位機回傳的手臂高度（可能為負）轉換為正數
                 current_height = abs(self.current_arm_status.height1)
-                error = abs(current_height - new_height) + 1
-                if error <= tolerance:
-                    rospy.loginfo(
-                        f"✅ 手臂調整成功：當前高度 {current_height} mm (目標 {new_height} mm，誤差 {error} mm)"
-                    )
-                    break
+                current_length = self.current_arm_status.length1  # 前伸長度保持不變
+
+                # 取得信心指數
+                confidence = self.TFConfidence(object_name)
+                if confidence is None or confidence < 0.5:
+                    rospy.logwarn(f"信心指數不足 ({confidence}), 暫停調整，等待重新估測。")
+                    rospy.sleep(1.0)
+                    continue
+
+                rospy.loginfo(
+                    f"當前水果 Z 值: {fruit_z:.4f}, 允許範圍: ({self.Subscriber.cut_pliers_lower_z} ~ {self.Subscriber.cut_pliers_upper_z}), 當前手臂高度: {current_height}"
+                )
+
+                # 若水果 Z 值在目標範圍內，則認為達標，停止調整
+                if self.Subscriber.cut_pliers_lower_z <= fruit_z <= self.Subscriber.cut_pliers_upper_z:
+                    rospy.loginfo("✅ 水果 Z 值已達標，停止調整高度。")
+                    return True
+
+                # 根據水果 Z 值決定調整方向：
+                # 若水果 Z 值低於 lower_z，水果太低，需上升 => 手臂高度增加
+                if fruit_z < self.Subscriber.cut_pliers_lower_z:
+                    new_height = current_height + abs(self.Subscriber.cut_pliers_height_increment)
+                    rospy.loginfo(f"📈 水果過低，預計上升：{current_height} -> {new_height} mm")
+                # 若水果 Z 值高於 upper_z，水果太高，需下降 => 手臂高度減少
                 else:
-                    rospy.logwarn(
-                        f"⏳ 當前高度 {current_height} mm，目標 {new_height} mm，誤差 {error} mm，等待中..."
-                    )
-                    rospy.sleep(1)
+                    new_height = current_height - abs(self.Subscriber.cut_pliers_height_increment)
+                    rospy.loginfo(f"📉 水果過高，預計下降：{current_height} -> {new_height} mm")
+
+                # 限制新高度在 [min_height, max_height] 範圍內
+                new_height = max(min(new_height, self.Subscriber.cut_pliers_max_height), self.Subscriber.cut_pliers_min_height)
+                rospy.loginfo(f"最終設定高度: {new_height} mm (範圍 [{self.Subscriber.cut_pliers_min_height}, {self.Subscriber.cut_pliers_max_height}])")
+
+                # 若高度變化超過容許誤差則發布控制命令
+                if abs(new_height - current_height) > tolerance:
+                    msg = CmdCutPliers()
+                    msg.height1 = int(new_height)    # 發布正值高度
+                    msg.length1 = int(current_length)  # 保持前伸長度不變
+                    msg.enable_motor1 = True
+                    msg.enable_motor2 = True
+                    msg.target_motor = 0  # target_motor = 0 表示控制高度
+                    msg.motor_value = int(new_height)  # 馬達值設定為目標高度
+                    self.arm_control_pub.publish(msg)
+                    rospy.loginfo(f"✅ 發送手臂控制指令: 高度={new_height}, 長度={current_length}")
+                else:
+                    rospy.loginfo("高度變化小於容許誤差，避免重複發布指令。")
+
+                # 等待手臂達到新高度
+                reach_start = time.time()
+                while time.time() - reach_start < 5:
+                    self.SpinOnce()
+                    # 讀取時也將高度轉換為正數進行比較
+                    current_height = abs(self.current_arm_status.height1)
+                    error = abs(current_height - new_height) + 1
+                    if error <= tolerance:
+                        rospy.loginfo(
+                            f"✅ 手臂調整成功：當前高度 {current_height} mm (目標 {new_height} mm，誤差 {error} mm)"
+                        )
+                        break
+                    else:
+                        rospy.logwarn(
+                            f"⏳ 當前高度 {current_height} mm，目標 {new_height} mm，誤差 {error} mm，等待中..."
+                        )
+                        rospy.sleep(1)
+                
+                rospy.sleep(1)  # 給予一些時間讓數據穩定後再重新評估水果 Z 值
+
+            rospy.logwarn("❌ 超時：手臂未能調整至符合目標水果 Z 範圍。")
+            return False
+
+    def fnControlArmBasedOnFruitX(self, object_name, timeout=10.0):
+            """
+            根據水果的 x 軸數值持續調整手臂前伸長度，
+            當水果的 x 值大於 target_x 時，認為已達標停止調整，
+            並保持手臂高度不變。
+            參數從 self.Subscriber 讀取。
+            """
+            start_time = time.time()
             
-            rospy.sleep(1)  # 給予一些時間讓數據穩定後再重新評估水果 Z 值
+            if not hasattr(self, "last_valid_length"):
+                self.last_valid_length = 0  # 確保變數初始化
 
-        rospy.logwarn("❌ 超時：手臂未能調整至符合目標水果 Z 範圍。")
-        return False
-
-
-    def fnControlArmBasedOnFruitX(self, object_name, target_x, timeout=10.0, increment=10, max_length=440):
-        """
-        根據水果的 x 軸數值持續調整手臂前伸長度，
-        當水果的 x 值大於 target_x 時，認為已達標停止調整，
-        並保持手臂高度不變。
-        """
-        start_time = time.time()
-        
-        if not hasattr(self, "last_valid_length"):
-            self.last_valid_length = 0  # 確保變數初始化
-
-        while time.time() - start_time < timeout:
-            # 更新水果 x 軸資訊
-            self.SpinOnce()
-            fruit_x = self.marker_2d_pose_x
-            rospy.loginfo(
-                f"當前水果 X 值: {fruit_x:.4f}, 目標: {target_x:.4f}, 前伸長度: {self.current_arm_status.length1}"
-            )
-
-            # 信心指數檢查
-            confidence = self.TFConfidence(object_name)
-            if confidence is None or confidence < 0.5:
-                rospy.logwarn(f"信心指數不足 ({confidence}), 停止手臂前伸。")
-                return False
-
-            # 若水果 x 值已達目標，則返回 True
-            if fruit_x >= target_x:
-                rospy.loginfo("水果 X 值已達標，停止前伸。")
-                return True
-
-            # 確保 `length1` 只增不減
-            current_length = self.current_arm_status.length1
-
-            # **如果 `length1=0`，使用上次有效值**
-            if current_length == 0:
-                rospy.logwarn(f"⚠ `length1=0`，忽略此數值，保持 {self.last_valid_length} mm")
-                current_length = self.last_valid_length
-            elif current_length < self.last_valid_length:
-                rospy.logwarn(f"⚠ `length1` 變小 ({current_length} mm)，恢復到 {self.last_valid_length} mm")
-                current_length = self.last_valid_length
-            else:
-                self.last_valid_length = current_length  # 記錄最後一次的有效長度
-
-            # 設定新的目標長度
-            target_length = min(current_length + increment, max_length)
-            rospy.loginfo(f"嘗試前伸: {target_length} mm")
-
-            # 發送控制命令
-            msg = CmdCutPliers()
-            msg.height1 = self.current_arm_status.height1  # 保持當前高度
-            msg.length1 = target_length  # 設定前伸長度
-            msg.enable_motor1 = True
-            msg.enable_motor2 = True
-            msg.target_motor = 1
-            msg.motor_value = target_length  # 設定馬達值
-
-            self.arm_control_pub.publish(msg)
-
-            # **等待手臂到達目標長度**
-            rospy.loginfo(f"等待手臂到達長度: {target_length} mm")
-            reach_start_time = time.time()
-            while time.time() - reach_start_time < 5:  # 最多等待 5 秒
+            while time.time() - start_time < timeout:
+                # 更新水果 x 軸資訊
                 self.SpinOnce()
+                fruit_x = self.marker_2d_pose_x
+                rospy.loginfo(
+                    f"當前水果 X 值: {fruit_x:.4f}, 目標: {self.Subscriber.cut_pliers_target_x:.4f}, 前伸長度: {self.current_arm_status.length1}"
+                )
+
+                # 信心指數檢查
+                confidence = self.TFConfidence(object_name)
+                if confidence is None or confidence < 0.5:
+                    rospy.logwarn(f"信心指數不足 ({confidence}), 停止手臂前伸。")
+                    return False
+
+                # 若水果 x 值已達目標，則返回 True
+                if fruit_x >= self.Subscriber.cut_pliers_target_x:
+                    rospy.loginfo("水果 X 值已達標，停止前伸。")
+                    return True
+
+                # 確保 `length1` 只增不減
                 current_length = self.current_arm_status.length1
 
-                # **確保 `length1` 只增加**
+                # 如果 `length1=0`，使用上次有效值
                 if current_length == 0:
                     rospy.logwarn(f"⚠ `length1=0`，忽略此數值，保持 {self.last_valid_length} mm")
                     current_length = self.last_valid_length
@@ -766,84 +719,106 @@ class Action():
                     rospy.logwarn(f"⚠ `length1` 變小 ({current_length} mm)，恢復到 {self.last_valid_length} mm")
                     current_length = self.last_valid_length
                 else:
-                    self.last_valid_length = current_length  # 更新最後一次的有效長度
+                    self.last_valid_length = current_length  # 記錄最後一次的有效長度
 
-                if abs(current_length - target_length) <= 10:  # 允許 10mm 誤差
-                    rospy.loginfo(f"✅ 手臂已到達目標長度 {current_length} mm")
-                    break
-                else:
-                    rospy.logwarn(f"⏳ 目前長度 {current_length} mm，目標 {target_length} mm，等待中...")
-                    rospy.sleep(0.5)  # 每 500ms 檢查一次
+                # 設定新的目標長度
+                target_length = min(current_length + self.Subscriber.cut_pliers_length_increment, self.Subscriber.cut_pliers_max_length)
+                rospy.loginfo(f"嘗試前伸: {target_length} mm")
 
-            rospy.sleep(1)  # **延長等待時間，確保 `length1` 更新穩定**
+                # 發送控制命令
+                msg = CmdCutPliers()
+                msg.height1 = int(self.current_arm_status.height1)  # 保持當前高度
+                msg.length1 = int(target_length)  # 設定前伸長度
+                msg.enable_motor1 = True
+                msg.enable_motor2 = True
+                msg.target_motor = 1
+                msg.motor_value = int(target_length)
 
-        rospy.logwarn("Timeout: 手臂未能達到目標 X 值。")
-        return False
+                self.arm_control_pub.publish(msg)
 
+                # 等待手臂到達目標長度
+                rospy.loginfo(f"等待手臂到達長度: {target_length} mm")
+                reach_start_time = time.time()
+                while time.time() - reach_start_time < 5:  # 最多等待 5 秒
+                    self.SpinOnce()
+                    current_length = self.current_arm_status.length1
 
+                    # 確保 `length1` 只增加
+                    if current_length == 0:
+                        rospy.logwarn(f"⚠ `length1=0`，忽略此數值，保持 {self.last_valid_length} mm")
+                        current_length = self.last_valid_length
+                    elif current_length < self.last_valid_length:
+                        rospy.logwarn(f"⚠ `length1` 變小 ({current_length} mm)，恢復到 {self.last_valid_length} mm")
+                        current_length = self.last_valid_length
+                    else:
+                        self.last_valid_length = current_length  # 更新最後一次的有效長度
 
-    def fnBlindExtendArm(self, extra_length, max_length=440, timeout=7.0):
-        """
-        盲伸手臂：在當前長度的基礎上，額外前伸 extra_length，並在到達後閉合剪鉗
-        
-        :param extra_length: 需要額外前伸的距離（單位 mm）
-        :param max_length: 最大可伸長度，避免超出限制（預設 440 mm）
-        :param timeout: 等待手臂到達目標長度的最大時間（秒）
-        :return: True 若手臂成功到達目標，False 若超時或發生錯誤
-        """
+                    if abs(current_length - target_length) <= 10:  # 允許 10mm 誤差
+                        rospy.loginfo(f"✅ 手臂已到達目標長度 {current_length} mm")
+                        break
+                    else:
+                        rospy.logwarn(f"⏳ 目前長度 {current_length} mm，目標 {target_length} mm，等待中...")
+                        rospy.sleep(0.5)  # 每 500ms 檢查一次
 
-        # 🔥 **新增變數，確保這個函數不會被重複執行**
-        if hasattr(self, "blind_extend_completed") and self.blind_extend_completed:
-            rospy.logwarn("⚠ `fnBlindExtendArm()` 已執行過，跳過此次呼叫")
-            return False  # 防止再次執行
+                rospy.sleep(1)  # 延長等待時間，確保 `length1` 更新穩定
 
-        start_time = time.time()
-
-        # 取得當前長度
-        current_length = self.current_arm_status.length1
-        if current_length is None:
-            rospy.logerr("❌ 無法獲取當前手臂長度，盲伸失敗")
+            rospy.logwarn("Timeout: 手臂未能達到目標 X 值。")
             return False
 
-        self.last_valid_length = current_length  # 更新最後一次的有效長度
 
-        # 設定目標長度
-        target_length = min(current_length + extra_length, max_length)
-        rospy.loginfo(f"🔵 盲伸: 當前長度={current_length} mm, 目標長度={target_length} mm")
+    def fnBlindExtendArm(self, timeout=7.0):
+            """
+            盲伸手臂：在當前長度的基礎上，額外前伸 extra_length，並在到達後閉合剪鉗
+            參數從 self.Subscriber 讀取。
+            """
+            # 新增變數，確保這個函數不會被重複執行
+            if hasattr(self, "blind_extend_completed") and self.blind_extend_completed:
+                rospy.logwarn("⚠ `fnBlindExtendArm()` 已執行過，跳過此次呼叫")
+                return False  # 防止再次執行
 
-        # 發送控制指令
-        msg = CmdCutPliers()
-        msg.height1 = self.current_arm_status.height1  # 保持當前高度
-        msg.length1 = target_length  # 設定新的前伸長度
-        msg.enable_motor1 = True
-        msg.enable_motor2 = True
-        msg.target_motor = 1
-        msg.motor_value = target_length
+            start_time = time.time()
 
-        self.arm_control_pub.publish(msg)
-
-        # **等待手臂到達目標長度**
-        rospy.loginfo(f"⏳ 等待手臂到達長度 {target_length} mm")
-        while time.time() - start_time < timeout:
-            self.SpinOnce()
+            # 取得當前長度
             current_length = self.current_arm_status.length1
+            if current_length is None:
+                rospy.logerr("❌ 無法獲取當前手臂長度，盲伸失敗")
+                return False
 
             self.last_valid_length = current_length  # 更新最後一次的有效長度
 
-            if abs(current_length - target_length) <= 10:  # 允許 10 mm 誤差
-                rospy.loginfo(f"✅ 手臂已成功盲伸至 {current_length} mm")
+            # 設定目標長度
+            target_length = min(current_length + self.Subscriber.cut_pliers_blind_extend_length, self.Subscriber.cut_pliers_max_length)
+            rospy.loginfo(f"🔵 盲伸: 當前長度={current_length} mm, 目標長度={target_length} mm")
 
+            # 發送控制指令
+            msg = CmdCutPliers()
+            msg.height1 = int(self.current_arm_status.height1)  # 保持當前高度
+            msg.length1 = int(target_length)  # 設定新的前伸長度
+            msg.enable_motor1 = True
+            msg.enable_motor2 = True
+            msg.target_motor = 1
+            msg.motor_value = int(target_length)
 
-                # ✅ **設置變數，防止重複執行**
-                self.blind_extend_completed = True
-                return True
+            self.arm_control_pub.publish(msg)
 
-            rospy.sleep(0.5)
+            # 等待手臂到達目標長度
+            rospy.loginfo(f"⏳ 等待手臂到達長度 {target_length} mm")
+            while time.time() - start_time < timeout:
+                self.SpinOnce()
+                current_length = self.current_arm_status.length1
 
-        rospy.logerr(f"⏰ 盲伸超時: 目標 {target_length} mm 未達成，當前 {current_length} mm")
-        return False
+                self.last_valid_length = current_length  # 更新最後一次的有效長度
 
+                if abs(current_length - target_length) <= 10:  # 允許 10 mm 誤差
+                    rospy.loginfo(f"✅ 手臂已成功盲伸至 {current_length} mm")
+                    # 設置變數，防止重複執行
+                    self.blind_extend_completed = True
+                    return True
 
+                rospy.sleep(0.5)
+
+            rospy.logerr(f"⏰ 盲伸超時: 目標 {target_length} mm 未達成，當前 {current_length} mm")
+            return False
 
     def fnControlClaw(self, claw_state, timeout=3):
         """
@@ -884,53 +859,57 @@ class Action():
 
 
 
-    def fnRetractArm(self, target_length_1, timeout=8.0):
-        if hasattr(self, "retract_executed") and self.retract_executed:
-            rospy.logwarn("⚠ 已執行過後退，忽略此次請求")
-            return False
+    def fnRetractArm(self, timeout=8.0):
+            """
+            後退手臂到指定的目標長度。
+            參數從 self.Subscriber 讀取。
+            """
+            if hasattr(self, "retract_executed") and self.retract_executed:
+                rospy.logwarn("⚠ 已執行過後退，忽略此次請求")
+                return False
 
-        rospy.loginfo(f"📢 正在執行 fnRetractArm(), 目標長度: {target_length_1}")
+            target_length_1 = self.Subscriber.cut_pliers_retract_length
+            rospy.loginfo(f"📢 正在執行 fnRetractArm(), 目標長度: {target_length_1}")
 
-        start_time = time.time()
-        current_length = self.current_arm_status.length1
-
-        if current_length is None:
-            rospy.logerr("❌ 無法獲取當前手臂長度，後退失敗")
-            return False
-
-        if target_length_1 > current_length:
-            rospy.logwarn(f"⚠ 目標長度 {target_length_1} mm 大於當前長度 {current_length} mm，忽略請求")
-            return False
-
-        # ✅ 設定為已執行後退
-        self.retract_executed = True
-
-        # **發送後退訊息**
-        msg = CmdCutPliers()
-        msg.height1 = self.current_arm_status.height1
-        msg.length1 = target_length_1
-        msg.claw1 = self.current_arm_status.claw1
-        msg.enable_motor1 = True
-        msg.enable_motor2 = True
-        msg.mode = 1  # **後退模式**
-        
-        self.arm_control_pub.publish(msg)
-        rospy.loginfo(f"🔵 已發送後退指令: {msg}")
-
-        while time.time() - start_time < timeout:
-            self.SpinOnce()
+            start_time = time.time()
             current_length = self.current_arm_status.length1
 
-            if abs(current_length - target_length_1) <= 10:
-                rospy.loginfo(f"✅ 手臂已成功縮回至 {current_length} mm")
-                return True
+            if current_length is None:
+                rospy.logerr("❌ 無法獲取當前手臂長度，後退失敗")
+                return False
 
-            rospy.logwarn(f"⏳ 目前長度 {current_length} mm，目標 {target_length_1} mm，等待中...")
-            rospy.sleep(0.5)
+            if target_length_1 > current_length:
+                rospy.logwarn(f"⚠ 目標長度 {target_length_1} mm 大於當前長度 {current_length} mm，忽略請求")
+                return False
 
-        rospy.logerr(f"⏰ 手臂後退超時: 目標 {target_length_1} mm 未達成，當前 {current_length} mm")
-        return False
+            # 設置為已執行後退
+            self.retract_executed = True
 
+            # 發送後退訊息
+            msg = CmdCutPliers()
+            msg.height1 = int(self.current_arm_status.height1)
+            msg.length1 = int(target_length_1)
+            msg.claw1 = int(self.current_arm_status.claw1)
+            msg.enable_motor1 = True
+            msg.enable_motor2 = True
+            msg.mode = 1  # 後退模式
+            
+            self.arm_control_pub.publish(msg)
+            rospy.loginfo(f"🔵 已發送後退指令: {msg}")
+
+            while time.time() - start_time < timeout:
+                self.SpinOnce()
+                current_length = self.current_arm_status.length1
+
+                if abs(current_length - target_length_1) <= 10:
+                    rospy.loginfo(f"✅ 手臂已成功縮回至 {current_length} mm")
+                    return True
+
+                rospy.logwarn(f"⏳ 目前長度 {current_length} mm，目標 {target_length_1} mm，等待中...")
+                rospy.sleep(0.5)
+
+            rospy.logerr(f"⏰ 手臂後退超時: 目標 {target_length_1} mm 未達成，當前 {current_length} mm")
+            return False
 
 
     def compute_moving_average(self, new_value):

@@ -53,5 +53,19 @@
         <param name="drop_pallet_drop_height_layer2" type="double" value = "0.56" /><!--牙叉放下棧板的高度/-->
         <param name="drop_pallet_back_distance" type="double" value = "1.0" /><!--放下棧板後，後退距離/-->
         <!-- <param name="drop_pallet_navigation_helght" type="double" value = "0.0" />完成放置棧板動作後，接續下一個動作時牙叉高度/ -->
+
+        <!--Cut pliers (arm) control settings/-->
+        <param name="cut_pliers_lower_z" type="double" value="0.022" /><!--水果 Z 軸下界（用於 fnControlArmBasedOnFruitZ）/-->
+        <param name="cut_pliers_upper_z" type="double" value="0.028" /><!--水果 Z 軸上界（用於 fnControlArmBasedOnFruitZ）/-->
+        <param name="cut_pliers_height_increment" type="double" value="10.0" /><!--手臂高度調整增量（用於 fnControlArmBasedOnFruitZ）/-->
+        <param name="cut_pliers_min_height" type="double" value="0.0" /><!--手臂最小高度（用於 fnControlArmBasedOnFruitZ）/-->
+        <param name="cut_pliers_max_height" type="double" value="280.0" /><!--手臂最大高度（用於 fnControlArmBasedOnFruitZ）/-->
+        <param name="cut_pliers_target_x" type="double" value="-0.13" /><!--水果 X 軸目標值（用於 fnControlArmBasedOnFruitX）/-->
+        <param name="cut_pliers_length_increment" type="double" value="10.0" /><!--手臂長度調整增量（用於 fnControlArmBasedOnFruitX）/-->
+        <param name="cut_pliers_max_length" type="double" value="440.0" /><!--手臂最大長度（用於 fnControlArmBasedOnFruitX 和 fnBlindExtendArm）/-->
+        <param name="cut_pliers_blind_extend_length" type="double" value="78.0" /><!--盲伸的額外長度（用於 fnBlindExtendArm）/-->
+        <param name="cut_pliers_retract_length" type="double" value="10.0" /><!--後退的目標長度（用於 fnRetractArm）/-->
+
+        
     </node>
 </launch>
