@@ -432,13 +432,13 @@ class Action():
                 return False
         return True
 
-#-----------------------------------------------------------------------------------------------
+#-------------------------------------------水果採摘控制----------------------------------------------------
 
     def refine_alignment(self, object_name, target_y=0.007, max_iterations=10, threshold=0.006):
         """
         當水果位於相機的左/右（以 y 軸衡量）時，對底盤做小幅微調，每次移動後檢查是否進入範圍。
         """
-        rospy.sleep(3)         # 避免發送頻率過高
+        rospy.sleep(5)         # 避免發送頻率過高
 
         Y_MIN = -0.002  # 允許的最小值
         Y_MAX = target_y  # 允許的最大值
@@ -530,7 +530,7 @@ class Action():
         return True
 
 
-    def fnControlArm(self, height, claw_state, timeout=5.0):
+    def fnControlArm(self, height, timeout=5.0):
         """
         控制機械手臂的高度、長度和爪子開合狀態，
         並持續檢查手臂當前狀態是否已達到指定目標，
@@ -543,18 +543,14 @@ class Action():
         :param timeout: 等待超時秒數 (預設 5 秒)
         :return: 如果在 timeout 內手臂狀態與目標在允許誤差內則返回 True，否則返回 False
         """
-        # 發布控制命令
         arm_cmd = CmdCutPliers()
         arm_cmd.height1 = height
         # arm_cmd.length1 = length
-        arm_cmd.claw1 = claw_state
+        # arm_cmd.claw1 = claw_state
         arm_cmd.enable_motor1 = True  # 啟動手臂馬達
         self.arm_control_pub.publish(arm_cmd)
-        # rospy.loginfo(
-        #     f"Published arm command: height={height}, length={length}, claw={claw_state}"
-        # )
 
-        # 持續等待，檢查手臂狀態是否達到目標
+
         start_time = time.time()
         while time.time() - start_time < timeout:
             if self.current_arm_status is not None:
@@ -562,12 +558,7 @@ class Action():
                 current_length = self.current_arm_status.length1
                 # 假設手臂回傳的 claw 狀態為數值，非 0 表示 True
                 current_claw = bool(self.current_arm_status.claw1)
-                # 打印當前狀態以便調試
-                # rospy.loginfo(
-                #     f"Current arm status: height={current_height}, length={current_length}, claw={current_claw}"
-                # )
-                # 使用 abs(current_height) 來處理高度讀數為負值的情況，
-                # 並允許高度與伸長長度在誤差 4 毫米內（不再檢查 claw 狀態）
+
                 if (abs(abs(current_height) - height) <= 10) :
                     rospy.loginfo("Arm reached target state.")
                     return True
@@ -859,7 +850,7 @@ class Action():
 
 
 
-    def fnRetractArm(self, timeout=8.0):
+    def fnRetractArm(self, timeout=12.0):
             """
             後退手臂到指定的目標長度。
             參數從 self.Subscriber 讀取。

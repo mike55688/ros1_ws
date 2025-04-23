@@ -291,7 +291,14 @@ private:
         custom_msgs::CmdCutPliers msg;
         msg.height1 = R_H1;
         msg.length1 = R_L1;
-        msg.claw1 = (R_C1 != 0);
+    
+        if (R_C1 == 2) {
+            msg.claw1 = true;   // 閉合
+        } else if (R_C1 == 6) {
+            msg.claw1 = false;  // 打開
+        } else {
+            msg.claw1 = false;  
+        }
         pub_.publish(msg);
     }
 };

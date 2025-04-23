@@ -21,7 +21,7 @@ TebLocalPlannerROS:
  max_vel_y:  0.0 
  max_vel_x_backwards: 0.2
  max_vel_theta: 0.5
- acc_lim_x: 0.18
+ acc_lim_x: 0.2
  acc_lim_y: 0.0 ##0.2
  acc_lim_theta: 0.3
  min_turning_radius: 0.4
@@ -35,8 +35,8 @@ TebLocalPlannerROS:
     
 # GoalTolerance
 
- xy_goal_tolerance: 0.1 #Default 0.15
- yaw_goal_tolerance: 0.1 #Default 0.2
+ xy_goal_tolerance: 0.15 #Default 0.15
+ yaw_goal_tolerance: 0.8 #Default 0.2
  free_goal_vel: False
 
  # Obstacles

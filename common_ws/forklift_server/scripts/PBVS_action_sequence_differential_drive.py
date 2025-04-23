@@ -54,6 +54,7 @@ FruitSequence = Enum( 'FruitSequence', \
                         cut_pliers_dead_reckoning \
                         cut_pliers_close \
                         cut_pliers_backing \
+                        cut_pliers_up \
                         cut_pliers_open \
                         cut_pliers_up_down') 
 
@@ -429,6 +430,8 @@ class PBVS():
             while(not rospy.is_shutdown()):
                 rospy.sleep(0.1)
 
+
+
                 if current_sequence == FruitSequence.move_forward_y.value:        
                     self.is_sequence_finished = self.Action.refine_alignment(object_name="bodycamera") 
                     if self.is_sequence_finished:
@@ -443,26 +446,33 @@ class PBVS():
 
                 elif current_sequence == FruitSequence.cut_pliers_approach.value:
                     self.is_sequence_finished = self.Action.fnControlArmBasedOnFruitX("bodycamera")
-                    print("here")
+                    # print("here")
                     if self.is_sequence_finished:
                         current_sequence = FruitSequence.cut_pliers_dead_reckoning.value  
                         self.is_sequence_finished = False  
 
                 elif current_sequence == FruitSequence.cut_pliers_dead_reckoning.value:
                     self.is_sequence_finished = self.Action.fnBlindExtendArm()
-                    print("here1")
+                    # print("here1")
                     if self.is_sequence_finished:
                         current_sequence = FruitSequence.cut_pliers_close.value  
                         self.is_sequence_finished = False  
 
                 elif current_sequence == FruitSequence.cut_pliers_close.value:
                     self.is_sequence_finished = self.Action.fnControlClaw(1)
-                    print("here2")
+                    # print("here2")
                     if self.is_sequence_finished:
                         current_sequence = FruitSequence.cut_pliers_backing.value  
                         self.is_sequence_finished = False  
 
-                elif current_sequence == FruitSequence.cut_pliers_backing.value:
+                # elif current_sequence == FruitSequence.cut_pliers_up.value:       #上升
+                #     self.is_sequence_finished = self.Action.fnControlArm(height=120) 
+                #     if self.is_sequence_finished:
+                #         current_sequence = FruitSequence.cut_pliers_backing.value  
+                #         self.is_sequence_finished = False 
+
+
+                elif current_sequence == FruitSequence.cut_pliers_backing.value: #後退
                     self.is_sequence_finished = self.Action.fnRetractArm()
                     if self.is_sequence_finished:
                         current_sequence = FruitSequence.cut_pliers_open.value  

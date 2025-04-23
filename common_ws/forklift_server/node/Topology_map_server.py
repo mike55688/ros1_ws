@@ -93,10 +93,13 @@ class SubscriberPose():        # 監聽車子在地圖中的位置
 
 class Navigation():
     def __init__(self):
-        odom = rospy.get_param(rospy.get_name() + "/odom", "/odom")
+        # odom = rospy.get_param(   rospy.get_name() + "/odom", "/odom")
+        robot_pose = rospy.get_param(rospy.get_name() + "/robot_pose", "/robot_pose")
         self.client = actionlib.SimpleActionClient('move_base',MoveBaseAction)
         self.client.wait_for_server()
-        self.sub_odom_robot = rospy.Subscriber(odom, Odometry, self.cbGetRobotOdom, queue_size = 1)
+        # self.sub_odom_robot = rospy.Subscriber(odom, Odometry, self.cbGetRobotOdom, queue_size = 1)
+        rospy.Subscriber(robot_pose, Pose, self.get_pose, queue_size=1)
+
         self.cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size = 1)
         self.init_param()
 
@@ -150,14 +153,30 @@ class Navigation():
         self.pre_odom = 0.0
         self.odom_pass = 0.0
     
-    def cbGetRobotOdom(self, msg):
+    # def cbGetRobotOdom(self, msg): #舊版吃車輪里程計
 
-        # orientation_q = msg.pose.pose.orientation
-        # orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
-        # (roll, pitch, yaw) = euler_from_quaternion(orientation_list)
-        # self.current_orientation = yaw
+    #     # orientation_q = msg.pose.pose.orientation
+    #     # orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+    #     # (roll, pitch, yaw) = euler_from_quaternion(orientation_list)
+    #     # self.current_orientation = yaw
 
-        self.rz, self.rw = msg.pose.pose.orientation.z, msg.pose.pose.orientation.w
+    #     self.rz, self.rw = msg.pose.pose.orientation.z, msg.pose.pose.orientation.w
+    #     yaw_r = math.atan2(2 * self.rw * self.rz, self.rw * self.rw - self.rz * self.rz)
+    #     if(yaw_r < 0):
+    #         yaw_r = yaw_r + 2 * math.pi
+
+    #     if(self.trigger == False):
+    #         self.pre_odom = yaw_r
+    #         self.odom_pass = 0.0
+    #         self.trigger = True
+    #     if(abs(yaw_r - self.pre_odom) > 1):
+    #         self.odom_pass = self.odom_pass
+    #     else:
+    #         self.odom_pass = self.odom_pass + yaw_r - self.pre_odom
+    #     self.pre_odom = yaw_r
+
+    def get_pose(self, msg): #新版吃地圖轉換座標
+        self.rz, self.rw = msg.orientation.z, msg.orientation.w
         yaw_r = math.atan2(2 * self.rw * self.rz, self.rw * self.rw - self.rz * self.rz)
         if(yaw_r < 0):
             yaw_r = yaw_r + 2 * math.pi
@@ -271,8 +290,6 @@ class TopologyMapAction():
                     # rospy.loginfo('self_spin from %s to %s' % (path[i-1], path[i]))
                     self.Navigation.self_spin(
                         waypoints[path[i]][2], waypoints[path[i]][3])
-                    i = i + 1
-                    continue
                 else:
                     rospy.loginfo('Navigation to %s' % path[i])
                     self._feedback.feedback = str('Navigation to %s' % path[i])

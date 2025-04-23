@@ -65,7 +65,6 @@
         <param name="cut_pliers_max_length" type="double" value="440.0" /><!--手臂最大長度（用於 fnControlArmBasedOnFruitX 和 fnBlindExtendArm）/-->
         <param name="cut_pliers_blind_extend_length" type="double" value="78.0" /><!--盲伸的額外長度（用於 fnBlindExtendArm）/-->
         <param name="cut_pliers_retract_length" type="double" value="10.0" /><!--後退的目標長度（用於 fnRetractArm）/-->
-
         
     </node>
 </launch>

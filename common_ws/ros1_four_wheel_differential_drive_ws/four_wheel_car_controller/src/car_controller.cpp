@@ -422,7 +422,7 @@ int main(int argc, char **argv){
 		    }
             else if(!new_message_received){  //當沒有收到/cmd_vel新的訊息以後，就停止運動
                 count_2++;
-                if(count_2 > 50){
+                if(count_2 > 70){
                   /*<01>*/Data_US[0]  = Flag_start;//电机启动开关，1启动 0停止
                   /*<02>*/Data_US[1]  = 0; 
                   /*<03>*/Data_US[2]  = 0; 

@@ -137,7 +137,7 @@ class Subscriber():
         self.cut_pliers_max_length = rospy.get_param(rospy.get_name() + "/cut_pliers_max_length", 440.0)
         self.cut_pliers_blind_extend_length = rospy.get_param(rospy.get_name() + "/cut_pliers_blind_extend_length", 78.0)
         self.cut_pliers_retract_length = rospy.get_param(rospy.get_name() + "/cut_pliers_retract_length", 10.0)
-
+        
         rospy.loginfo("Get cut pliers (arm) control parameters")
         rospy.loginfo("cut_pliers_lower_z: {}, type: {}".format(self.cut_pliers_lower_z, type(self.cut_pliers_lower_z)))
         rospy.loginfo("cut_pliers_upper_z: {}, type: {}".format(self.cut_pliers_upper_z, type(self.cut_pliers_upper_z)))
@@ -149,7 +149,6 @@ class Subscriber():
         rospy.loginfo("cut_pliers_max_length: {}, type: {}".format(self.cut_pliers_max_length, type(self.cut_pliers_max_length)))
         rospy.loginfo("cut_pliers_blind_extend_length: {}, type: {}".format(self.cut_pliers_blind_extend_length, type(self.cut_pliers_blind_extend_length)))
         rospy.loginfo("cut_pliers_retract_length: {}, type: {}".format(self.cut_pliers_retract_length, type(self.cut_pliers_retract_length)))
-
 
     def init_parame(self):
         # Odometry_param
@@ -366,24 +365,7 @@ class PBVSAction():
         rospy.logwarn('PBVS receive command : %s' % (msg))
         self.PBVS = PBVS(self._as, self.subscriber, msg)
 
-        # if(msg.command == "parking_bodycamera"):
-        #     self.subscriber.shelf_or_pallet = False  # True: pallet, False: shelf
-        #     self.PBVS.parking_bodycamera()
-        # elif(msg.command == "parking_forkcamera"):
-        #     self.subscriber.shelf_or_pallet = True  # True: pallet, False: shelf
-        #     self.PBVS.parking_forkcamera()
-        # elif(msg.command == "raise_pallet"):
-        #     self.subscriber.shelf_or_pallet = False
-        #     self.PBVS.raise_pallet()
-        # elif(msg.command == "drop_pallet"):
-        #     self.subscriber.shelf_or_pallet = False
-        #     self.PBVS.drop_pallet()
-        # elif(msg.command == "odom_front"):
-        #     self.subscriber.shelf_or_pallet = False
-        #     self.PBVS.odom_front()
-        # elif(msg.command == "odom_turn"):
-        #     self.subscriber.shelf_or_pallet = False
-        #     self.PBVS.odom_turn()
+
         if(msg.command == "fruit_docking"):
                 self.subscriber.shelf_or_pallet = False  
                 self.PBVS.fruit_docking()
