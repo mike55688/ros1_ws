@@ -218,7 +218,7 @@ void receive_and_process_data(void)
                    }
 		     
                 } 
-        if(++count_1>4){//显示频率降低
+        if(++count_1>149){//显示频率降低
            count_1=0;
                        
            std::cout<< "[01] Current_Height_1:" << (int)R_H1 <<"[mm]"<<std::endl;
@@ -405,7 +405,7 @@ private:
         // 長度：保持最後有效值
         S_L1 = std::min(std::max(last_valid_length_, 10), 440);
         S_C1 = claw1_;
-        ROS_INFO("Publishing data: height=%d, length=%d, claw=%s", S_H1, S_L1, S_C1 ? "True" : "False");
+        // ROS_INFO("Publishing data: height=%d, length=%d, claw=%s", S_H1, S_L1, S_C1 ? "True" : "False");
         send_data();
     }
 };

@@ -56,6 +56,7 @@ FruitSequence = Enum( 'FruitSequence', \
                         cut_pliers_backing \
                         cut_pliers_up \
                         cut_pliers_open \
+                        cut_pliers_down \
                         cut_pliers_up_down') 
 
 class PBVS():
@@ -462,21 +463,29 @@ class PBVS():
                     self.is_sequence_finished = self.Action.fnControlClaw(1)
                     # print("here2")
                     if self.is_sequence_finished:
-                        current_sequence = FruitSequence.cut_pliers_backing.value  
+                        current_sequence = FruitSequence.cut_pliers_up.value  
                         self.is_sequence_finished = False  
 
-                # elif current_sequence == FruitSequence.cut_pliers_up.value:       #上升
-                #     self.is_sequence_finished = self.Action.fnControlArm(height=120) 
-                #     if self.is_sequence_finished:
-                #         current_sequence = FruitSequence.cut_pliers_backing.value  
-                #         self.is_sequence_finished = False 
+                elif current_sequence == FruitSequence.cut_pliers_up.value:       #上升
+                    self.is_sequence_finished = self.Action.fnControlArm(height=120) 
+                    if self.is_sequence_finished:
+                        current_sequence = FruitSequence.cut_pliers_backing.value  
+                        self.is_sequence_finished = False 
 
 
                 elif current_sequence == FruitSequence.cut_pliers_backing.value: #後退
                     self.is_sequence_finished = self.Action.fnRetractArm()
                     if self.is_sequence_finished:
-                        current_sequence = FruitSequence.cut_pliers_open.value  
+                        current_sequence = FruitSequence.cut_pliers_down.value  
                         self.is_sequence_finished = False  
+
+
+                elif current_sequence == FruitSequence.cut_pliers_down.value:       #下降
+                    self.is_sequence_finished = self.Action.fnControlArm(height=80) 
+                    if self.is_sequence_finished:
+                        current_sequence = FruitSequence.cut_pliers_open.value  
+                        self.is_sequence_finished = False 
+
 
                 elif current_sequence == FruitSequence.cut_pliers_open.value:
                     self.is_sequence_finished = self.Action.fnControlClaw(0)

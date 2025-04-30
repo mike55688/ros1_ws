@@ -530,7 +530,7 @@ class Action():
         return True
 
 
-    def fnControlArm(self, height, timeout=5.0):
+    def fnControlArm(self, height, timeout=8.0):
         """
         控制機械手臂的高度、長度和爪子開合狀態，
         並持續檢查手臂當前狀態是否已達到指定目標，
@@ -546,7 +546,7 @@ class Action():
         arm_cmd = CmdCutPliers()
         arm_cmd.height1 = height
         # arm_cmd.length1 = length
-        # arm_cmd.claw1 = claw_state
+        arm_cmd.claw1 = True
         arm_cmd.enable_motor1 = True  # 啟動手臂馬達
         self.arm_control_pub.publish(arm_cmd)
 
