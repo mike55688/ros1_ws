@@ -811,6 +811,43 @@ class Action():
             rospy.logerr(f"⏰ 盲伸超時: 目標 {target_length} mm 未達成，當前 {current_length} mm")
             return False
 
+    # def fnControlClaw(self, claw_state, timeout=3):
+    #     """
+    #     控制剪鉗的開合 (claw1)，並等待其完成
+
+    #     :param claw_state: True = 閉合剪鉗, False = 打開剪鉗
+    #     :param timeout: 等待剪鉗動作完成的最大時間 (秒)
+    #     :return: True 若剪鉗成功執行, False 若超時或發生錯誤
+    #     """
+    #     start_time = time.time()
+
+    #     # 確保 claw_state 為 bool
+    #     claw_state = bool(claw_state)
+
+    #     # 發送剪鉗控制指令
+    #     msg = CmdCutPliers()
+    #     msg.height1 = self.current_arm_status.height1  # 保持當前高度
+    #     msg.length1 = self.current_arm_status.length1  # 保持當前長度
+    #     msg.claw1 = claw_state  # 確保為 bool
+    #     msg.enable_motor1 = True
+    #     msg.enable_motor2 = True
+
+    #     self.arm_control_pub.publish(msg)
+    #     rospy.loginfo(f"✂ 剪鉗指令發送: {'閉合' if claw_state else '打開'}")
+
+    #     # 等待剪鉗狀態變更，達到目標狀態後等待2秒再返回True
+    #     while time.time() - start_time < timeout:
+    #         self.SpinOnce()  # 處理 ROS 回傳的狀態
+    #         if self.current_arm_status.claw1 == claw_state:
+    #             rospy.loginfo(f"✅ 剪鉗 {'閉合' if claw_state else '打開'} 成功，等待2秒以穩定狀態...")
+    #             rospy.sleep(10)  # 等待2秒
+    #             return True
+    #         rospy.logwarn(f"⏳ 剪鉗動作中... 目標: {claw_state}, 當前: {self.current_arm_status.claw1}")
+    #         rospy.sleep(0.1)
+        
+    #     rospy.logerr(f"⏰ 剪鉗動作超時: 目標 {claw_state}, 當前 {self.current_arm_status.claw1}")
+    #     return False
+
     def fnControlClaw(self, claw_state, timeout=3):
         """
         控制剪鉗的開合 (claw1)，並等待其完成
@@ -824,6 +861,14 @@ class Action():
         # 確保 claw_state 為 bool
         claw_state = bool(claw_state)
 
+        # 等待初始手臂狀態
+        while self.current_arm_status is None and time.time() - start_time < 1.0:
+            rospy.logwarn("等待手臂狀態初始化...")
+            rospy.sleep(0.1)
+        if self.current_arm_status is None:
+            rospy.logerr("❌ 未接收到手臂狀態，無法控制剪鉗")
+            return False
+
         # 發送剪鉗控制指令
         msg = CmdCutPliers()
         msg.height1 = self.current_arm_status.height1  # 保持當前高度
@@ -831,23 +876,25 @@ class Action():
         msg.claw1 = claw_state  # 確保為 bool
         msg.enable_motor1 = True
         msg.enable_motor2 = True
-
         self.arm_control_pub.publish(msg)
         rospy.loginfo(f"✂ 剪鉗指令發送: {'閉合' if claw_state else '打開'}")
 
-        # 等待剪鉗狀態變更，達到目標狀態後等待2秒再返回True
+        # 等待剪鉗狀態變更
         while time.time() - start_time < timeout:
             self.SpinOnce()  # 處理 ROS 回傳的狀態
             if self.current_arm_status.claw1 == claw_state:
-                rospy.loginfo(f"✅ 剪鉗 {'閉合' if claw_state else '打開'} 成功，等待2秒以穩定狀態...")
-                rospy.sleep(2)  # 等待2秒
+                if claw_state:  # 閉合
+                    rospy.loginfo(f"✅ 剪鉗閉合成功，等待2秒以穩定狀態...")
+                    rospy.sleep(5)  # 閉合後等待2秒
+                else:  # 打開
+                    rospy.loginfo(f"✅ 剪鉗打開成功，等待10秒以穩定狀態...")
+                    rospy.sleep(25)  # 打開後等待10秒
                 return True
             rospy.logwarn(f"⏳ 剪鉗動作中... 目標: {claw_state}, 當前: {self.current_arm_status.claw1}")
             rospy.sleep(0.1)
         
-        rospy.logerr(f"⏰ 剪鉗動作超時: 目標 {claw_state}, 當前 {self.current_arm_status.claw1}")
+        rospy.logerr(f"⏰ 剪鉗動作超時: 目標 {claw_state}, 當前: {self.current_arm_status.claw1}")
         return False
-
 
 
     def fnRetractArm(self, timeout=12.0):

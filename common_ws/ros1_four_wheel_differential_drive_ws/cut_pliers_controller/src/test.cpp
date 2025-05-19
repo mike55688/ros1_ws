@@ -317,7 +317,7 @@ public:
         nh.param<std::string>("cmd_topic", cmd_topic, "/cmd_cut_pliers_123"); // 預設 "/cmd_cut_pliers"
 
         // 初始化手臂1控制參數（僅控制手臂1）
-        target_height1_ = 140;
+        target_height1_ = 160;
         target_length1_ = -1;
         last_valid_length_ = 10;
         claw1_ = false;
@@ -420,7 +420,7 @@ int main(int argc, char** argv)
     ros::NodeHandle nh;
 
     // 初始化串口
-    ros_ser.setPort("/dev/ttyUSB1");
+    ros_ser.setPort("/dev/ttyUSB0");
     ros_ser.setBaudrate(115200);
     serial::Timeout to = serial::Timeout::simpleTimeout(100);
     ros_ser.setTimeout(to);
@@ -432,7 +432,7 @@ int main(int argc, char** argv)
         return -1;
     }
     if (ros_ser.isOpen())
-        ROS_INFO("/dev/ttyUSB0 is opened.");
+        ROS_INFO("/dev/ttyUSB1 is opened.");
     else
         return -1;
 
